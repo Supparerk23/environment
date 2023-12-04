@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  mongo-v1-rs0:
+    container_name: mongo-v1-rs0
+    hostname: mongo-v1-rs0
+    image: bitnami/mongodb:4.4.1-debian-10-r39
+    expose:
+      - 27017
+    ports:
+      - 27017:27017
+    restart: always
+    networks:
+      - mongoCluster
+    command: mongod --dbpath /data/v1/db-0 --replSet replicaSetCluster --bind_ip localhost,mongo-v1-rs0
+    volumes:
+      - ../data/v1/db-0:/data/v1/db-0
+  mongo-v1-rs1:
+    container_name: mongo-v1-rs1
+    hostname: mongo-v1-rs1
+    image: bitnami/mongodb:4.4.1-debian-10-r39
+    expose:
+      - 27017
+    restart: always
+    networks:
+      - mongoCluster
+    command: mongod --dbpath /data/v1/db-1 --replSet replicaSetCluster --bind_ip localhost,mongo-v1-rs1
+    volumes:
+      - ../data/v1/db-1:/data/v1/db-1
+  mongo-v1-init:
+    container_name: mongo-v1-init
+    image: bitnami/mongodb:4.4.1-debian-10-r39
+    restart: "no"
+    networks:
+      - mongoCluster
+    depends_on:
+      - mongo-v1-rs0
+      - mongo-v1-rs1
+    command:
+      - /bin/sh
+      - -c
+      - |
+          echo "sleep 5sec waiting another node readey" &&
+          sleep 5 && 
+          echo "run create replicaSetCluster" &&
+          mongo --host mongo-v1-rs0:27017 --eval  ' db = (new Mongo("mongo-v1-rs0:27017")).getDB("myDb"); config = { "_id" : "replicaSetCluster", "members" : [
+            {
+              "_id" : 0,
+              "host" : "mongo-v1-rs0:27017"
+            },
+            {
+              "_id" : 1,
+              "host" : "mongo-v1-rs1:27017",
+              "priority" : 0
+            }
+          ] }; rs.initiate(config); '
+networks:
+  mongoCluster:
+    driver: bridge

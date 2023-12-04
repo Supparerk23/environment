@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  mongo-v2-rs0:
+    container_name: mongo-v2-rs0
+    hostname: mongo-v2-rs0
+    image: bitnami/mongodb:7.0.4-debian-11-r0
+    expose:
+      - 27017
+    ports:
+      - 27018:27017
+    restart: always
+    networks:
+      - mongov2Cluster
+    command: mongod --dbpath /data/v2/db-0 --replSet replicaSetClusterV2 --bind_ip localhost,mongo-v2-rs0
+    volumes:
+      - ../data/v2/db-0:/data/v2/db-0
+  mongo-v2-rs1:
+    container_name: mongo-v2-rs1
+    hostname: mongo-v2-rs1
+    image: bitnami/mongodb:7.0.4-debian-11-r0
+    expose:
+      - 27017
+    restart: always
+    networks:
+      - mongov2Cluster
+    command: mongod --dbpath /data/v2/db-1 --replSet replicaSetClusterV2 --bind_ip localhost,mongo-v2-rs1
+    volumes:
+      - ../data/v2/db-1:/data/v2/db-1
+  mongo-v2-rs2:
+    container_name: mongo-v2-rs2
+    hostname: mongo-v2-rs2
+    image: bitnami/mongodb:7.0.4-debian-11-r0
+    expose:
+      - 27017
+    restart: always
+    networks:
+      - mongov2Cluster
+    command: mongod --dbpath /data/v2/db-2 --replSet replicaSetClusterV2 --bind_ip localhost,mongo-v2-rs2
+    volumes:
+      - ../data/v2/db-2:/data/v2/db-2
+  mongo-v2-init:
+    container_name: mongo-v2-init
+    image: bitnami/mongodb:7.0.4-debian-11-r0
+    restart: "no"
+    networks:
+      - mongov2Cluster
+    depends_on:
+      - mongo-v2-rs0
+      - mongo-v2-rs1
+      - mongo-v2-rs2
+    command:
+      - /bin/sh
+      - -c
+      - |
+          echo "sleep 5sec waiting another node readey" &&
+          sleep 5 && 
+          echo "run create replicaSetClusterV2" &&
+          mongosh --host mongo-v2-rs0:27017 --eval  ' db = (new Mongo("mongo-v2-rs0:27017")).getDB("myDb"); config = { "_id" : "replicaSetClusterV2", "members" : [
+            {
+              "_id" : 0,
+              "host" : "mongo-v2-rs0:27017"
+            },
+            {
+              "_id" : 1,
+              "host" : "mongo-v2-rs1:27017",
+              "priority" : 0
+            },
+            {
+              "_id" : 2,
+              "host" : "mongo-v2-rs2:27017",
+              "priority" : 0
+            }
+          ] }; rs.initiate(config); '
+networks:
+  mongov2Cluster:
+    driver: bridge
